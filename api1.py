@@ -1,24 +1,67 @@
 import json
 import requests
+import csv
+import jsondiff
 
-authQuery = {"username": "m.yeganeh", "password": "D1@yM25FKg2"}
-restUrl = "http://192.168.2.201:9058/api/v1/"
-authHeaders = {"Content-Type": "application/json"}
-authResponse = requests.post(restUrl + "authenticate", headers=authHeaders, json=authQuery)
-jsonResponse = authResponse.json()
-clientToken = jsonResponse['clientToken']
+dsCode = "90002"
 
-customerInfoQuery = {"nationalCode": "10102968790", "dsCode": "811049"}
-customerInfoHeaders = {"X-CLIENT-TOKEN": clientToken}
-customerInfoResponse = requests.get(restUrl + "customers/customerInfo",
-                                    headers=customerInfoHeaders, params=customerInfoQuery)
-# print(customerInfoResponse.json())
+def ordered(obj):
+    if isinstance(obj, dict):
+        return sorted((k, ordered(v)) for k, v in obj.items())
+    if isinstance(obj, list):
+        return sorted(ordered(x) for x in obj)
+    else:
+        return obj
 
-fapiUrl = "https://fapi-test.irbroker.com"
-fapiQuery = {"nationalCode": "4529719987", "isPortfo": "0", "prxCode": "", "lang": "fa"}
-fapiHeaders = {"x-fixed-token": "$2a$10$DrC65NU67gpcTIF7ez0U8udv3.kn8Lomm98RYEMy0DGYvxZ0GzW2S",
-               "X-CUSTOMER-ID": "10760003", "x-ds-code": "90001"}
-fapiResponse = requests.get(fapiUrl + "/api/v1/customers/customerInfo", headers=fapiHeaders, params=fapiQuery)
-print(fapiResponse.json())
+class Service:
+    serviceName = ""
+    baseFapiUrl = ""
+    baseRestUrl = ""
+    fapiCostumeUrl = ""
+    restCostumeUrl = ""
+    fapiQuery = ""
+    fapiHeaders = ""
+    fapiResponse = ""
+    restHeaders = ""
+    restResponse = ""
+
+    def getFapiServiceUrl(self):
+        return self.fapiCostumeUrl
 
 
+customerInfo = Service()
+
+baseFapiUrl = "https://fapi-test.irbroker.com"
+fapiCostumeUrl = "/api/v1/customers/orders"
+
+baseRestUrl = "http://192.168.2.201:9058"
+restCostumeUrl = "/api/v1/customers/orders"
+
+with open('mytestdata.csv', newline='') as csv_file:
+    reader = csv.reader(csv_file, delimiter=',')
+    testDatatList = list(reader)
+    # print(nationalCode[1][0])
+
+jsonDiff = []
+for na in testDatatList:
+    fapiQuery = {}
+    fapiHeaders = {"x-fixed-token": "$2a$10$DrC65NU67gpcTIF7ez0U8udv3.kn8Lomm98RYEMy0DGYvxZ0GzW2S",
+                   "X-CUSTOMER-ID": na[1], "x-ds-code": dsCode}
+    fapiResponse = requests.get(baseFapiUrl + fapiCostumeUrl, headers=fapiHeaders, params=fapiQuery)
+    print(fapiResponse.json())
+
+    authQuery = {"username": "m.yeganeh", "password": "D1@yM25FKg2"}
+    authHeaders = {"Content-Type": "application/json"}
+    authResponse = requests.post(baseRestUrl + "/api/v1/authenticate", headers=authHeaders, json=authQuery)
+    jsonResponse = authResponse.json()
+    clientToken = jsonResponse['clientToken']
+
+    customerInfoQuery = {"customerId": na[1], "dsCode": dsCode}
+    customerInfoHeaders = {"X-CLIENT-TOKEN": clientToken}
+    restResponse = requests.get(baseRestUrl + restCostumeUrl,
+                                headers=customerInfoHeaders, params=customerInfoQuery)
+    print(restResponse.json())
+    from jsondiff import diff
+
+    jsonDiff.append(diff(ordered(fapiResponse).json(), ordered(restResponse).json()))
+print(jsonDiff)
